@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0e13">
+<title>One AI Booth</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#0b0e13;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{max-width:560px;margin:0 auto;padding:14px 14px 34px}
+h1{margin:2px 0 3px;text-align:center;font-size:24px}.sub{text-align:center;color:#9aa5b1;font-size:13px;margin-bottom:12px}
+.stage{position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;border-radius:20px;background:#171c23;border:1px solid #303844}
+.stage video,.stage img,.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+#video{object-fit:cover;transform:scaleX(-1);display:none;background:#111}
+#framePreview{object-fit:fill;display:none;pointer-events:none;z-index:5}
+#resultCanvas{display:none;z-index:3}
+.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#8c98a5;padding:30px;line-height:1.5}
+.status{margin:11px 0 10px;padding:10px 12px;min-height:42px;border-radius:12px;background:#151a21;color:#d2d8de;font-size:14px;text-align:center}
+.controls{display:grid;gap:10px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button,.btn{border:0;border-radius:14px;padding:14px 12px;font-size:16px;font-weight:760;text-align:center;cursor:pointer;user-select:none}
+button:disabled{opacity:.4}.primary{background:#74e2d2;color:#08110f}.white{background:#fff;color:#101318}.secondary{background:#242b35;color:#fff;border:1px solid #39424f}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.small{font-size:12px;color:#7f8a96;text-align:center;line-height:1.45;margin:10px 8px 0}.ok{color:#8fe6d5}.warn{color:#ffd77d}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ONE AI BOOTH</h1>
+  <div class="sub">Şəkil + PNG ramka — nəticə ramkanın öz ölçüsündə çıxır</div>
+
+  <div class="stage" id="stage">
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="resultCanvas"></canvas>
+    <img id="framePreview" alt="frame preview">
+    <div class="empty" id="empty">1. PNG ramka seç<br>2. Kameranı aç</div>
+  </div>
+
+  <div class="status" id="status">Hazırdır.</div>
+
+  <div class="controls">
+    <label class="btn white" for="frameInput">1. PNG ramka seç</label>
+    <input id="frameInput" type="file" accept="image/png,image/*">
+
+    <div class="row">
+      <button id="cameraBtn" class="primary" type="button">2. Kameranı aç</button>
+      <button id="takeBtn" class="secondary" type="button" disabled>Şəkil çək</button>
+    </div>
+
+    <div class="row">
+      <button id="retakeBtn" class="secondary" type="button" disabled>Yenidən çək</button>
+      <button id="saveBtn" class="white" type="button" disabled>Hazır PNG-ni saxla</button>
+    </div>
+  </div>
+
+  <div class="small">Foto həmişə ramkanın <b>altında</b> yerləşir. PNG-də şəffaf olan yerlərdən foto görünür. Ramkanı ayrıca “tapmağa” ehtiyac yoxdur.</div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const stage=$('stage'), video=$('video'), framePreview=$('framePreview');
+  const canvas=$('resultCanvas'), ctx=canvas.getContext('2d');
+  const empty=$('empty'), status=$('status'), frameInput=$('frameInput');
+  const cameraBtn=$('cameraBtn'), takeBtn=$('takeBtn'), retakeBtn=$('retakeBtn'), saveBtn=$('saveBtn');
+
+  let frameImg=null, frameUrl=null, stream=null, hasResult=false;
+
+  const msg=(t,cls='')=>{status.className='status '+cls;status.textContent=t};
+
+  function loadFileImage(file){
+    return new Promise((resolve,reject)=>{
+      const url=URL.createObjectURL(file); const img=new Image();
+      img.onload=()=>resolve({img,url});
+      img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Fayl şəkil kimi açıla bilmədi.'))};
+      img.src=url;
+    });
+  }
+
+  function fitStage(w,h){
+    if(!w||!h)return;
+    stage.style.aspectRatio=`${w} / ${h}`;
+    canvas.width=w; canvas.height=h;
+  }
+
+  function drawCover(source, mirrored=false){
+    const w=canvas.width,h=canvas.height;
+    const sw=source.videoWidth||source.naturalWidth||source.width;
+    const sh=source.videoHeight||source.naturalHeight||source.height;
+    if(!sw||!sh) throw new Error('Şəkilin ölçüsü oxunmadı.');
+    const scale=Math.max(w/sw,h/sh);
+    const cropW=w/scale,cropH=h/scale;
+    const sx=(sw-cropW)/2,sy=(sh-cropH)/2;
+    ctx.save();
+    if(mirrored){ctx.translate(w,0);ctx.scale(-1,1)}
+    ctx.drawImage(source,sx,sy,cropW,cropH,0,0,w,h);
+    ctx.restore();
+  }
+
+  function render(source, mirrored=false){
+    if(!frameImg){msg('Əvvəl PNG ramka seç.','warn');return false}
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawCover(source,mirrored);
+    ctx.drawImage(frameImg,0,0,canvas.width,canvas.height);
+    hasResult=true;
+    canvas.style.display='block'; video.style.display='none'; framePreview.style.display='none'; empty.style.display='none';
+    saveBtn.disabled=false;retakeBtn.disabled=false;
+    msg(`Hazırdır — ${canvas.width}×${canvas.height} PNG. Ramka şəklin üstündədir.`,'ok');
+    return true;
+  }
+
+  function showLiveFrame(){
+    framePreview.style.display=frameImg?'block':'none';
+  }
+
+  async function frameHasTransparency(img){
+    const c=document.createElement('canvas');c.width=100;c.height=150;
+    const x=c.getContext('2d',{willReadFrequently:true});x.clearRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
+    const d=x.getImageData(0,0,c.width,c.height).data;
+    let transparent=0;
+    for(let i=3;i<d.length;i+=4) if(d[i]<245){transparent++; if(transparent>30)return true}
+    return false;
+  }
+
+  frameInput.addEventListener('change',async()=>{
+    const f=frameInput.files?.[0];if(!f)return;
+    try{
+      if(frameUrl)URL.revokeObjectURL(frameUrl);
+      const o=await loadFileImage(f); frameImg=o.img; frameUrl=o.url;
+      fitStage(frameImg.naturalWidth,frameImg.naturalHeight);
+      framePreview.src=frameUrl;showLiveFrame();empty.style.display='none';
+      const alpha=await frameHasTransparency(frameImg);
+      if(alpha) msg(`Ramka əlavə olundu: ${canvas.width}×${canvas.height}. İndi kameranı aç.`,'ok');
+      else msg('Ramka əlavə olundu, amma PNG-də şəffaf sahə görünmür. Foto arxada qalsa da görünməyə bilər.','warn');
+    }catch(e){frameImg=null;framePreview.style.display='none';msg(e.message||'Ramka yüklənmədi.','warn')}
+  });
+
+  cameraBtn.addEventListener('click',async()=>{
+    if(!frameImg){msg('Əvvəl PNG ramka seç.','warn');return}
+    if(!navigator.mediaDevices?.getUserMedia){msg('Bu brauzer canlı kameranı dəstəkləmir. Saytı Safari-də HTTPS linkdən aç.','warn');return}
+    try{
+      if(stream)stream.getTracks().forEach(t=>t.stop());
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1920},height:{ideal:1080}},audio:false});
+      video.srcObject=stream;await video.play();
+      hasResult=false;canvas.style.display='none';video.style.display='block';showLiveFrame();empty.style.display='none';
+      takeBtn.disabled=false;retakeBtn.disabled=true;saveBtn.disabled=true;
+      msg('Kamera açıldı. Ramka ekranda görünür. “Şəkil çək” bas.','ok');
+    }catch(e){msg('Kamera açılmadı. Saytı Safari-də HTTPS linkdən aç və Camera icazəsi ver.','warn')}
+  });
+
+  takeBtn.addEventListener('click',()=>{
+    if(!stream||!video.videoWidth){msg('Kamera hələ hazır deyil.','warn');return}
+    try{render(video,true)}catch(e){msg(e.message,'warn')}
+  });
+
+  retakeBtn.addEventListener('click',()=>{
+    hasResult=false;canvas.style.display='none';saveBtn.disabled=true;retakeBtn.disabled=true;
+    if(stream){video.style.display='block';showLiveFrame();takeBtn.disabled=false;msg('Yenidən çəkə bilərsən.','ok')}
+    else {video.style.display='none';showLiveFrame();msg('Kameranı aç.','ok')}
+  });
+
+  saveBtn.addEventListener('click',()=>{
+    if(!hasResult){msg('Əvvəl şəkli hazırla.','warn');return}
+    canvas.toBlob(blob=>{
+      if(!blob){msg('PNG yaradıla bilmədi.','warn');return}
+      const u=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=u;a.download=`one-ai-booth-${canvas.width}x${canvas.height}.png`;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(u),5000);msg(`PNG hazırdır: ${canvas.width}×${canvas.height}.`,'ok')
+    },'image/png');
+  });
+
+  window.addEventListener('pagehide',()=>{if(stream)stream.getTracks().forEach(t=>t.stop())});
+})();
+</script>
+</body>
+</html>
