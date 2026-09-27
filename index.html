@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0805">
+<title>ONE AI BOOTH — Premium Guest Flow</title>
+<style>
+:root{
+  --ink:#1c120c;--cream:#fff0cf;--gold:#dfbd7f;--gold2:#f2d7a0;
+  --glass:rgba(26,16,10,.56);--line:rgba(246,220,172,.33);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{position:fixed;inset:0;background:#000;overflow:hidden}
+.screen{display:none;position:absolute;inset:0;overflow:hidden;background:#000}
+.screen.active{display:block}
+.sceneVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;background:#000}
+.sceneShade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(24,13,6,.12),transparent 34%,transparent 74%,rgba(20,11,6,.22))}
+.uiTop{position:absolute;z-index:80;left:0;right:0;top:0;padding:max(14px,env(safe-area-inset-top)) 16px 0;display:flex;justify-content:space-between;pointer-events:none}
+.iconBtn{pointer-events:auto;width:48px;height:48px;border:1px solid var(--line);border-radius:15px;background:rgba(30,20,14,.55);backdrop-filter:blur(10px);color:#fff6e3;font-size:20px;display:grid;place-items:center;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.iconBtn:active{transform:scale(.96)}
+.hidden{display:none!important}
+
+/* SCREEN 1 */
+#screen1 .welcomeTap{position:absolute;inset:0;z-index:15}
+.galleryButton{position:relative}
+.galleryButton:before{content:"";width:23px;height:16px;border:2px solid #fff3dd;border-radius:3px;display:block}
+.galleryButton:after{content:"";position:absolute;width:10px;height:5px;border:2px solid #fff3dd;border-bottom:0;border-radius:3px 3px 0 0;left:12px;top:12px}
+.galleryBadge{position:absolute;right:-5px;top:-5px;min-width:20px;height:20px;border-radius:999px;background:var(--gold);color:#25170d;font-size:10px;font-weight:900;display:grid;place-items:center;border:2px solid #1a110b}
+.lockGlyph{width:16px;height:14px;border:2px solid #fff3dd;border-radius:3px;position:relative}
+.lockGlyph:before{content:"";position:absolute;width:10px;height:9px;border:2px solid #fff3dd;border-bottom:0;border-radius:8px 8px 0 0;left:1px;top:-9px}
+.startCopy{position:absolute;z-index:20;left:50%;bottom:max(26px,env(safe-area-inset-bottom));transform:translateX(-50%);padding:13px 24px;border:1px solid rgba(255,236,196,.34);border-radius:999px;background:rgba(28,17,10,.36);backdrop-filter:blur(8px);color:#fff0ce;font-size:clamp(13px,2.5vw,18px);font-weight:800;letter-spacing:.10em;white-space:nowrap;pointer-events:none}
+
+/* SCREEN 2 — clean premium choices, no fake web cards */
+#screen2 .styleChoices{position:absolute;z-index:30;inset:0;pointer-events:none}
+.styleChoice{position:absolute;bottom:max(5.5%,env(safe-area-inset-bottom) + 18px);width:min(29vw,220px);min-width:128px;min-height:78px;border:1px solid rgba(240,208,155,.48);border-radius:18px;background:linear-gradient(180deg,rgba(62,36,21,.78),rgba(34,20,12,.86));box-shadow:0 12px 34px rgba(0,0,0,.24),inset 0 0 0 1px rgba(255,245,220,.06);backdrop-filter:blur(8px);color:#fff2d9;pointer-events:auto;padding:13px 12px 11px;text-align:center}
+.styleChoice.color{left:5%}.styleChoice.mono{right:5%}
+.styleChoice .brushMark{display:block;width:52px;height:5px;margin:0 auto 9px;border-radius:50%;background:linear-gradient(90deg,#ba5a42,#d4ae56,#568071);transform:rotate(-3deg)}
+.styleChoice.mono .brushMark{background:linear-gradient(90deg,#36312e,#8c8176,#48423d)}
+.styleChoice strong{display:block;font:italic 600 clamp(18px,3.5vw,28px)/1.05 Georgia,"Times New Roman",serif}
+.styleChoice span{display:block;margin-top:6px;font-size:9px;font-weight:800;letter-spacing:.17em;opacity:.76}
+.styleChoice:active{transform:scale(.97)}
+
+/* SCREENS 3–5: duplicate video foreground keeps painter above camera/photo */
+.sceneBase{z-index:1}
+.portalLayer{position:absolute;z-index:7;display:none;background:#17110d;overflow:hidden}
+#live3,#live4{width:100%;height:100%;object-fit:cover;object-position:center;transform:scaleX(-1) scale(1.08)}
+#reviewImage,#processingImage{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+
+/* Camera/photo deliberately extends slightly under the canvas edges.
+   The keyed foreground layer puts the painter + moving hand back above it. */
+.readyCanvas{
+  left:-1.5%;top:24.4%;width:78%;height:51%;
+  clip-path:polygon(1% 0%,80% 5%,79% 87%,9% 100%);
+}
+.reviewCanvas{
+  left:25.8%;top:37.4%;width:49%;height:34.7%;
+  clip-path:polygon(0 0,100% 1%,100% 96%,2% 97%);
+}
+
+/* Per-frame white-canvas key: keeps painter/hand in front without repainting white canvas over photo. */
+.keyedForeground{
+  position:absolute;inset:0;width:100%;height:100%;z-index:14;pointer-events:none;
+  object-fit:cover;display:none;
+  clip-path:polygon(39% 17%,100% 17%,100% 100%,39% 100%);
+}
+#screen5 .keyedForeground{clip-path:polygon(43% 24%,100% 24%,100% 100%,43% 100%)}
+#screen6 .keyedForeground{clip-path:polygon(39% 17%,100% 17%,100% 100%,39% 100%)}
+
+/* Source foreground videos are kept hidden; JS reads their frames into keyed canvases. */
+.sceneForeground{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;pointer-events:none;z-index:-1}
+
+.readyPhrase{position:absolute;z-index:35;left:50%;bottom:max(5.6%,env(safe-area-inset-bottom) + 18px);transform:translateX(-50%) rotate(-2deg);color:#fff0cb;font-family:"Segoe Print","Bradley Hand","Brush Script MT","Snell Roundhand",cursive;font-size:clamp(32px,6.6vw,58px);font-weight:700;font-style:italic;line-height:1;white-space:nowrap;text-shadow:0 2px 0 rgba(99,51,18,.90),0 8px 22px rgba(0,0,0,.45);pointer-events:none;animation:readyFloat 2.1s ease-in-out infinite}
+.readyPhrase:after{content:"";position:absolute;left:10%;right:6%;bottom:-12px;height:4px;background:linear-gradient(90deg,#ca6247,#d8b25d,#5c8072);border-radius:50%;transform:rotate(-2deg)}
+@keyframes readyFloat{50%{transform:translateX(-50%) rotate(-.4deg) scale(1.02)}}
+
+.countdownOverlay{position:absolute;z-index:40;inset:0;display:none;align-items:center;justify-content:flex-start;padding-left:24%;pointer-events:none}
+.countBubble{position:relative;width:96px;height:96px;border-radius:50%;display:grid;place-items:center;background:rgba(42,27,18,.44);border:2px solid rgba(245,220,170,.92);box-shadow:0 10px 32px rgba(0,0,0,.30);backdrop-filter:blur(3px);transform:rotate(-6deg)}
+.countBubble:before,.countBubble:after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.countBubble:before{inset:-9px;border:2px solid rgba(222,169,90,.76);border-left-color:transparent;border-bottom-color:transparent;transform:rotate(31deg)}
+.countBubble:after{width:112px;height:76px;border-top:2px solid rgba(250,228,188,.82);border-radius:50%;transform:rotate(-21deg)}
+.countNum{position:relative;z-index:2;font-family:"Segoe Print","Bradley Hand",cursive;font-size:60px;font-weight:800;color:#fff4d7;text-shadow:0 4px 13px rgba(0,0,0,.48)}
+@keyframes countPop{0%{transform:scale(.58);opacity:.15}52%{transform:scale(1.18);opacity:1}100%{transform:scale(1)}}
+
+/* Screen 5 buttons */
+.reviewActions{position:absolute;z-index:45;left:50%;bottom:max(20px,env(safe-area-inset-bottom) + 8px);transform:translateX(-50%);width:min(88%,540px);display:none;grid-template-columns:1fr 1fr;gap:12px;padding:10px;border-radius:18px;background:rgba(25,15,9,.49);backdrop-filter:blur(10px)}
+.reviewActions button{min-height:56px;border-radius:13px;font-size:14px;font-weight:900;letter-spacing:.06em}
+.retake{border:1px solid rgba(232,197,146,.44);background:rgba(44,30,21,.90);color:#fff1dc}
+.continue{border:0;background:var(--gold);color:#28190f}
+
+/* Screen 6 */
+.processingCopy{position:absolute;z-index:25;left:50%;bottom:max(34px,env(safe-area-inset-bottom) + 16px);transform:translateX(-50%);text-align:center;color:#fff0d2;text-shadow:0 4px 18px rgba(0,0,0,.45);width:min(84%,650px)}
+.processingCopy .eyebrow{font-size:10px;letter-spacing:.22em;font-weight:900;opacity:.82}
+.processingCopy h2{margin:7px 0 12px;font:italic 600 clamp(28px,6vw,52px)/1 Georgia,serif}
+.progress{height:6px;border-radius:999px;background:rgba(255,255,255,.18);overflow:hidden}
+.progressBar{width:0;height:100%;background:linear-gradient(90deg,#c85d43,#d9b35b,#608477);transition:width .35s ease}
+
+
+/* Processing: captured photo is actually visible on the easel. */
+#screen6 .processingCanvas{display:block}
+#screen6 #processingPortal{display:block}
+#screen6 #processingImage{
+  filter:grayscale(1) contrast(1.65) brightness(1.08);
+  opacity:.92;transform:scale(1.03);
+  transition:filter 1s ease,opacity .8s ease,transform 1s ease;
+}
+#screen6.colorStage #processingImage{
+  filter:grayscale(0) contrast(1.03) saturate(1.05);
+  opacity:1;transform:scale(1);
+}
+#screen6 .processingCopy{z-index:35}
+#screen6 .keyedForeground{display:block}
+
+/* Back button is present on every guest step after welcome. */
+.flowBack{position:absolute;z-index:90;top:max(14px,env(safe-area-inset-top));left:16px}
+
+/* Screen 7 */
+.finalPanel{position:absolute;z-index:30;left:50%;bottom:max(24px,env(safe-area-inset-bottom) + 10px);transform:translateX(-50%);width:min(90%,650px);display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px;border-radius:19px;background:rgba(26,16,10,.52);backdrop-filter:blur(12px)}
+.finalPanel button{min-height:54px;border-radius:12px;border:1px solid rgba(237,204,155,.37);font-weight:900;font-size:13px}
+.finalPanel .print{background:var(--gold);color:#28190f;border:0}
+.finalPanel .qr{background:rgba(255,248,232,.94);color:#28190f}
+.finalPanel .finish{background:rgba(41,28,19,.90);color:#fff0d7}
+.finalPhoto{
+  position:absolute;z-index:18;display:none;
+  left:7%;top:16%;width:54%;height:58%;object-fit:cover;object-position:center;
+  border:10px solid #7a4b25;outline:3px solid #d7ad6b;
+  box-shadow:0 18px 45px rgba(0,0,0,.38),inset 0 0 0 2px rgba(255,240,205,.28);
+  transform:rotate(-1deg);background:#e9dcc7;
+}
+
+/* Gallery */
+.galleryScreen{background:linear-gradient(180deg,#17100b,#0b0805)}
+.galleryWrap{position:absolute;inset:80px 16px 16px;overflow:auto;padding-bottom:30px}
+.galleryTitle{font:italic 600 34px/1 Georgia,serif;color:#f4dbad;margin:5px 0 18px}
+.galleryGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+.galleryItem{position:relative;aspect-ratio:2/3;background:#24170f;border:1px solid rgba(230,198,147,.2);border-radius:11px;overflow:hidden}
+.galleryItem img{width:100%;height:100%;object-fit:cover}
+.galleryEmpty{opacity:.62;margin-top:30px}
+
+/* Admin */
+.modal{position:absolute;inset:0;z-index:200;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.68);backdrop-filter:blur(8px)}
+.modal.open{display:flex}
+.adminCard{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#15100c;border:1px solid rgba(239,206,153,.22);border-radius:22px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.46)}
+.adminHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.adminHead h2{margin:0;font:600 30px Georgia,serif;color:#f1d8aa}
+.closeBtn{width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.13);background:#261a12;color:#fff;font-size:24px}
+.adminGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:7px}.field.full{grid-column:1/-1}
+.field label{font-size:12px;font-weight:800;color:#ddc49e}.field input,.field select{width:100%;padding:12px;border-radius:10px;border:1px solid #433225;background:#0e0a07;color:#fff}
+.note{font-size:11px;line-height:1.4;opacity:.65}.adminActions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.adminActions button{padding:12px 18px;border-radius:11px;font-weight:850}.saveBtn{border:0;background:var(--gold);color:#27180e}.cancelBtn{border:1px solid #493628;background:#21160f;color:#fff}
+
+/* QR/print simple overlays */
+.smallModalCard{width:min(410px,92vw);background:#17100b;border:1px solid rgba(239,206,153,.24);border-radius:20px;padding:20px;text-align:center}
+.qrBox{width:230px;height:230px;margin:14px auto;background:#fff;border-radius:14px;display:grid;place-items:center;color:#111;font-weight:900}
+.qrBox img{width:210px;height:210px}
+.qty{display:flex;align-items:center;justify-content:center;gap:20px;margin:18px 0}.qty button{width:50px;height:50px;border-radius:12px;border:1px solid #514035;background:#251910;color:#fff;font-size:28px}.qty strong{font-size:34px}
+
+@media(max-width:600px){
+  .styleChoice{width:27%;min-width:112px;padding:11px 8px}.styleChoice.color{left:3.5%}.styleChoice.mono{right:3.5%}
+  .countdownOverlay{padding-left:21%}.countBubble{width:80px;height:80px}.countNum{font-size:50px}
+  .adminGrid{grid-template-columns:1fr}
+  .field.full{grid-column:auto}
+}
+</style>
+
+<style id="v3-composite-fix">
+/* ===== Stable video/camera integration =====
+   We no longer duplicate/key the painter video with CSS. Each frame is composed
+   into one canvas: scene first, then the live/photo only on the connected white
+   easel canvas. Painter/hand/brush remain original scene pixels above it. */
+#screen3 .sceneVideo,#screen4 .sceneVideo,#screen5 .sceneVideo,#screen6 .sceneVideo,
+#screen3 .sceneForeground,#screen4 .sceneForeground,#screen5 .sceneForeground,#screen6 .sceneForeground,
+#screen3 .portalLayer,#screen4 .portalLayer,#screen5 .portalLayer,#screen6 .portalLayer,
+#screen3 .keyedForeground,#screen4 .keyedForeground,#screen5 .keyedForeground,#screen6 .keyedForeground{
+  opacity:0!important;visibility:hidden!important;pointer-events:none!important;
+}
+.compositeStage{
+  position:absolute;inset:0;z-index:10;width:100%;height:100%;
+  object-fit:cover;background:#000;display:block;
+}
+#screen3 .readyPhrase,#screen4 .countdownOverlay,#screen5 .reviewActions,
+#screen6 .processingCopy,#screen3 .uiTop,.flowBack{z-index:70!important}
+#screen5 .reviewActions{display:none}
+#screen6 .processingCopy{pointer-events:none}
+#screen6 .processingCopy h2{margin-bottom:14px}
+#screen6 .processingTime{
+  margin:8px 0 0;font-size:10px;font-weight:850;letter-spacing:.16em;opacity:.75
+}
+/* final result must always be visible */
+#screen7 .finalPhoto{
+  display:block!important;position:absolute!important;z-index:60!important;
+  left:50%!important;top:43%!important;width:min(58vw,380px)!important;height:auto!important;
+  aspect-ratio:2/3!important;transform:translate(-50%,-50%) rotate(-1deg)!important;
+  object-fit:cover!important;object-position:center!important;
+  border:10px solid #6e4525!important;outline:3px solid #d8ae6a!important;
+  box-shadow:0 24px 58px rgba(0,0,0,.48)!important;background:#eadcc4!important;
+}
+#screen7 .finalPanel{z-index:80!important}
+#screen7 .flowBack{z-index:90!important}
+</style>
+
+</head>
+<body>
+<div class="app">
+
+<section class="screen active" id="screen1">
+  <video class="sceneVideo" id="welcomeVideo" autoplay muted loop playsinline preload="auto">
+    <source src="assets/01_welcome.MP4" type="video/mp4">
+  </video>
+  <div class="sceneShade"></div>
+  <div class="uiTop">
+    <button class="iconBtn galleryButton" id="galleryBtn" aria-label="Gallery"><span class="galleryBadge" id="galleryBadge">0</span></button>
+    <button class="iconBtn" id="adminBtn" aria-label="Operator menu">⚙</button>
+  </div>
+  <div class="startCopy" id="touchText">BAŞLAMAQ ÜÇÜN TOXUN</div>
+  <div class="welcomeTap" id="welcomeTap"></div>
+</section>
+
+<section class="screen" id="screen2">
+  <video class="sceneVideo" id="styleVideo" muted loop playsinline preload="auto">
+    <source src="assets/02_style_select.mov" type="video/mp4">
+  </video>
+  <div class="sceneShade"></div>
+  <div class="uiTop"><button class="iconBtn flowBack" id="backStyle">‹</button><span></span></div>
+  <div class="styleChoices">
+    <button class="styleChoice color" data-style="color">
+      <i class="brushMark"></i><strong id="colorLabel">Rəngli</strong><span id="colorSub">KARİKATURA</span>
+    </button>
+    <button class="styleChoice mono" data-style="mono">
+      <i class="brushMark"></i><strong id="monoLabel">Qara-ağ</strong><span id="monoSub">KARİKATURA</span>
+    </button>
+  </div>
+</section>
+
+<section class="screen" id="screen3">
+  <canvas class="compositeStage" id="stage3" width="512" height="910"></canvas>
+  <video class="sceneVideo sceneBase" id="readyBase" muted loop playsinline preload="auto" src="assets/03_ready_countdown.MP4"></video>
+  <div class="portalLayer readyCanvas" id="readyPortal"><video id="live3" autoplay muted playsinline></video></div>
+  <video class="sceneForeground" id="readyFg" muted loop playsinline preload="auto" src="assets/03_ready_countdown.MP4"></video>
+  <canvas class="keyedForeground" id="readyKey"></canvas>
+  <div class="readyPhrase" id="readyPhrase">Hazırsansa başla</div>
+  <div class="uiTop"><button class="iconBtn flowBack" id="backReady">‹</button><span></span></div>
+</section>
+
+<section class="screen" id="screen4">
+  <canvas class="compositeStage" id="stage4" width="512" height="910"></canvas>
+  <video class="sceneVideo sceneBase" id="countBase" muted loop playsinline preload="auto" src="assets/04_countdown_capture.MP4"></video>
+  <div class="portalLayer readyCanvas" id="countPortal"><video id="live4" autoplay muted playsinline></video></div>
+  <video class="sceneForeground" id="countFg" muted loop playsinline preload="auto" src="assets/04_countdown_capture.MP4"></video>
+  <canvas class="keyedForeground" id="countKey"></canvas>
+  <button class="iconBtn flowBack" id="backCount">‹</button>
+  <div class="countdownOverlay" id="countdownOverlay"><div class="countBubble"><span class="countNum" id="countNum">4</span></div></div>
+</section>
+
+<section class="screen" id="screen5">
+  <canvas class="compositeStage" id="stage5" width="512" height="910"></canvas>
+  <video class="sceneVideo sceneBase" id="reviewBase" muted loop playsinline preload="auto" src="assets/05_capture_review.mov"></video>
+  <div class="portalLayer reviewCanvas" id="reviewPortal"><img id="reviewImage" alt=""></div>
+  <video class="sceneForeground" id="reviewFg" muted loop playsinline preload="auto" src="assets/05_capture_review.mov"></video>
+  <canvas class="keyedForeground" id="reviewKey"></canvas>
+  <button class="iconBtn flowBack" id="backReview">‹</button>
+  <div class="reviewActions" id="reviewActions">
+    <button class="retake" id="retakeBtn">YENİDƏN ÇƏK</button>
+    <button class="continue" id="continueBtn">DAVAM ET</button>
+  </div>
+</section>
+
+<section class="screen" id="screen6">
+  <canvas class="compositeStage" id="stage6" width="512" height="910"></canvas>
+  <video class="sceneVideo sceneBase" id="generatingVideo" muted loop playsinline preload="auto">
+    <source src="assets/06_generating.MP4" type="video/mp4">
+  </video>
+  <div class="portalLayer readyCanvas processingCanvas" id="processingPortal"><img id="processingImage" alt=""></div>
+  <video class="sceneForeground" id="processingFg" muted loop playsinline preload="auto" src="assets/06_generating.MP4"></video>
+  <canvas class="keyedForeground" id="processingKey"></canvas>
+  <button class="iconBtn flowBack" id="backProcessing">‹</button>
+  <div class="sceneShade"></div>
+  <div class="processingCopy">
+    <div class="eyebrow" id="processingEyebrow">ONE AI BOOTH • LIVE ART</div>
+    <h2 id="processingTitle">Portretin hazırlanır</h2>
+    <div class="progress"><div class="progressBar" id="progressBar"></div></div><div class="processingTime" id="processingTime">0%</div>
+  </div>
+</section>
+
+<section class="screen" id="screen7">
+  <video class="sceneVideo sceneBase" id="finalVideo" muted loop playsinline preload="auto">
+    <source src="assets/07_final_result.MP4" type="video/mp4">
+  </video>
+  <button class="iconBtn flowBack" id="backFinal">‹</button>
+  <img class="finalPhoto" id="finalPhoto" alt="">
+  <div class="finalPanel">
+    <button class="print" id="printBtn">ÇAP ET</button>
+    <button class="qr" id="qrBtn">QR</button>
+    <button class="finish" id="finishBtn">BİTİR</button>
+  </div>
+</section>
+
+<section class="screen galleryScreen" id="galleryScreen">
+  <div class="uiTop"><button class="iconBtn" id="galleryBack">‹</button><span></span></div>
+  <div class="galleryWrap"><div class="galleryTitle" id="galleryTitle">Event qalereyası</div><div class="galleryEmpty" id="galleryEmpty">Hələ şəkil yoxdur.</div><div class="galleryGrid" id="galleryGrid"></div></div>
+</section>
+
+<div class="modal" id="adminModal">
+  <div class="adminCard">
+    <div class="adminHead"><h2>Operator Menu</h2><button class="closeBtn" id="adminClose">×</button></div>
+    <div class="adminGrid">
+      <div class="field"><label>Event adı</label><input id="eventName" value="ONE EVENTS"></div>
+      <div class="field"><label>Qonaq dili</label><select id="guestLanguage"><option value="az">Azərbaycan</option><option value="en">English</option><option value="tr">Türkçe</option><option value="ru">Русский</option></select></div>
+      <div class="field"><label>Kamera</label><select id="cameraMode"><option value="webcam">Web Camera</option><option value="canon-1100d">Canon EOS 1100D</option><option value="canon-600d">Canon EOS 600D</option><option value="canon-650d">Canon EOS 650D</option></select><div class="note">Canon USB idarəsi Windows helper/EDSDK tələb edir.</div></div>
+      <div class="field"><label>Printer</label><select id="printerMode"><option value="dnp-rx1">DNP RX1</option><option value="dnp-rx1hs">DNP RX1HS</option><option value="epson-l8050">Epson L8050</option></select><div class="note">Avtomatik çap üçün Windows helper + printer driver lazımdır.</div></div>
+      <div class="field full"><label>PNG frame</label><input id="frameInput" type="file" accept="image/png"><div class="note">Frame final 1200×1800 çıxışın üzərinə çəkilir.</div></div>
+      <div class="field"><label>QR</label><select id="qrMode"><option value="on">ON</option><option value="off">OFF</option></select></div>
+    </div>
+    <div class="adminActions"><button class="cancelBtn" id="adminCancel">BAĞLA</button><button class="saveBtn" id="adminSave">YADDA SAXLA</button></div>
+  </div>
+</div>
+
+<div class="modal" id="qrModal"><div class="smallModalCard"><button class="closeBtn" id="qrClose">×</button><div class="qrBox" id="qrBox">QR</div><div class="note" id="qrHint">Cloud paylaşım qoşulanda QR original + final şəkli açacaq.</div></div></div>
+<div class="modal" id="printModal"><div class="smallModalCard"><button class="closeBtn" id="printClose">×</button><h3>Çap sayı</h3><div class="qty"><button id="qtyMinus">−</button><strong id="qtyValue">1</strong><button id="qtyPlus">+</button></div><button class="saveBtn" id="printConfirm">ÇAP ET</button><div class="note" id="printStatus" style="margin-top:12px"></div></div></div>
+
+<canvas id="captureCanvas" width="1200" height="1800"></canvas>
+<canvas id="finalCanvas" width="1200" height="1800"></canvas>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const screens=['screen1','screen2','screen3','screen4','screen5','screen6','screen7','galleryScreen'];
+
+let settings={eventName:'ONE EVENTS',guestLanguage:'az',cameraMode:'webcam',printerMode:'dnp-rx1hs',qrMode:'on'};
+let stream=null,selectedStyle='color',rawData='',finalData='',frameData='',printCopies=1,counting=false,flowToken=0;
+let gallery=[];
+
+const TXT={
+ az:{touch:'BAŞLAMAQ ÜÇÜN TOXUN',color:'Rəngli',mono:'Qara-ağ',ready:'Hazırsansa başla',retake:'YENİDƏN ÇƏK',cont:'DAVAM ET',processing:'Portretin hazırlanır',print:'ÇAP ET',finish:'BİTİR',gallery:'Event qalereyası',empty:'Hələ şəkil yoxdur.'},
+ en:{touch:'TOUCH TO START',color:'Color',mono:'Black & White',ready:"Ready? Let's begin",retake:'RETAKE',cont:'CONTINUE',processing:'Creating your portrait',print:'PRINT',finish:'FINISH',gallery:'Event gallery',empty:'No photos yet.'},
+ tr:{touch:'BAŞLAMAK İÇİN DOKUN',color:'Renkli',mono:'Siyah-beyaz',ready:'Hazırsan başla',retake:'TEKRAR ÇEK',cont:'DEVAM ET',processing:'Portren hazırlanıyor',print:'YAZDIR',finish:'BİTİR',gallery:'Etkinlik galerisi',empty:'Henüz fotoğraf yok.'},
+ ru:{touch:'КОСНИСЬ, ЧТОБЫ НАЧАТЬ',color:'Цветная',mono:'Чёрно-белая',ready:'Готовы? Начнём',retake:'ПЕРЕСНЯТЬ',cont:'ПРОДОЛЖИТЬ',processing:'Создаём портрет',print:'ПЕЧАТЬ',finish:'ГОТОВО',gallery:'Галерея события',empty:'Фотографий пока нет.'}
+};
+function t(k){return (TXT[settings.guestLanguage]||TXT.az)[k]||k}
+function applyLanguage(){
+ $('touchText').textContent=t('touch');$('colorLabel').textContent=t('color');$('monoLabel').textContent=t('mono');
+ $('readyPhrase').textContent=t('ready');$('retakeBtn').textContent=t('retake');$('continueBtn').textContent=t('cont');
+ $('processingTitle').textContent=t('processing');$('printBtn').textContent=t('print');$('finishBtn').textContent=t('finish');
+ $('galleryTitle').textContent=t('gallery');$('galleryEmpty').textContent=t('empty');
+}
+
+function show(id){
+ screens.forEach(s=>$(s).classList.toggle('active',s===id));
+ const map={screen1:['welcomeVideo'],screen2:['styleVideo'],screen3:['readyBase','readyFg'],screen4:['countBase','countFg'],screen5:['reviewBase','reviewFg'],screen6:['generatingVideo','processingFg'],screen7:['finalVideo']};
+ document.querySelectorAll('video.sceneVideo,video.sceneForeground').forEach(v=>{if(!Object.values(map).flat().includes(v.id))return;});
+ Object.entries(map).forEach(([sid,ids])=>ids.forEach(idv=>{const v=$(idv);if(!v)return;if(sid===id){try{v.currentTime=0}catch(e){};v.play().catch(()=>{})}else v.pause()}));
+}
+function syncPair(base,fg){
+ if(!base||!fg)return;
+ const sync=()=>{if(Math.abs((base.currentTime||0)-(fg.currentTime||0))>.10){try{fg.currentTime=base.currentTime}catch(e){}}};
+ base.addEventListener('timeupdate',sync);
+}
+
+
+syncPair($('readyBase'),$('readyFg'));syncPair($('countBase'),$('countFg'));syncPair($('reviewBase'),$('reviewFg'));syncPair($('generatingVideo'),$('processingFg'));
+
+/* ---------- STABLE EASEL COMPOSITOR ----------
+   Only pixels INSIDE the real easel canvas polygon are touched.
+   Within that polygon, neutral/light canvas pixels are replaced by the
+   live/photo image. Moving hand/brush/person pixels stay from the original
+   scene, so face/eyes are never keyed and cannot break. */
+const W=512,H=910;
+const work=document.createElement('canvas');
+work.width=W;work.height=H;
+const wctx=work.getContext('2d',{willReadFrequently:true});
+const portal=document.createElement('canvas');
+portal.width=W;portal.height=H;
+const pctx=portal.getContext('2d',{willReadFrequently:true});
+
+const EASEL={
+  ready:{
+    // measured from the actual 512×910 ready video
+    tl:[22,246], tr:[347,263], br:[342,642], bl:[34,676]
+  },
+  review:{
+    // measured from the actual 512×910 review video
+    tl:[145,352], tr:[374,352], br:[371,642], bl:[145,642]
+  }
+};
+
+function coverSourceToBuffer(source){
+  pctx.clearRect(0,0,W,H);
+  const sw=source?.videoWidth||source?.naturalWidth||source?.width||0;
+  const sh=source?.videoHeight||source?.naturalHeight||source?.height||0;
+  if(!sw||!sh)return false;
+  const scale=Math.max(W/sw,H/sh),cw=W/scale,ch=H/scale;
+  const sx=(sw-cw)/2,sy=(sh-ch)/2;
+  // mirror live video only; captured image is already mirrored at capture time
+  if(source.tagName==='VIDEO'){
+    pctx.save();pctx.translate(W,0);pctx.scale(-1,1);
+    pctx.drawImage(source,sx,sy,cw,ch,0,0,W,H);pctx.restore();
+  }else{
+    pctx.drawImage(source,sx,sy,cw,ch,0,0,W,H);
+  }
+  return true;
+}
+
+function interp(a,b,t){return a+(b-a)*t}
+
+function canvasPixelIsReplaceable(r,g,b){
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+  const lum=(r+g+b)/3;
+  // wide enough to include canvas shadows, but rejects skin/clothes/brush
+  return lum>118 && (mx-mn)<72 && r>112 && g>108 && b>96;
+}
+
+function renderStage(stageId,scene,source,shape,opts={}){
+  const stage=$(stageId);
+  if(!stage||!scene||scene.readyState<2||!source)return;
+  if(!coverSourceToBuffer(source))return;
+
+  const sctx=stage.getContext('2d');
+  wctx.clearRect(0,0,W,H);
+  wctx.drawImage(scene,0,0,W,H);
+
+  const base=wctx.getImageData(0,0,W,H);
+  const pd=pctx.getImageData(0,0,W,H);
+  const bd=base.data,sd=pd.data;
+  const q=EASEL[shape];
+  const topY=Math.min(q.tl[1],q.tr[1]);
+  const botY=Math.max(q.bl[1],q.br[1]);
+
+  for(let y=topY;y<=botY;y++){
+    const v=Math.max(0,Math.min(1,(y-topY)/(botY-topY)));
+    const lx=interp(q.tl[0],q.bl[0],v);
+    const rx=interp(q.tr[0],q.br[0],v);
+    const x0=Math.max(0,Math.floor(lx));
+    const x1=Math.min(W-1,Math.ceil(rx));
+    const width=Math.max(1,rx-lx);
+
+    for(let x=x0;x<=x1;x++){
+      const u=Math.max(0,Math.min(1,(x-lx)/width));
+      const i=(y*W+x)*4;
+      const r=bd[i],g=bd[i+1],b=bd[i+2];
+
+      // Replace ONLY the actual white/off-white canvas. Non-white pixels
+      // inside the polygon are the painter's hand/brush/palette and remain.
+      if(!canvasPixelIsReplaceable(r,g,b))continue;
+
+      // Perspective-like mapping from source to the quadrilateral.
+      const sy=Math.max(0,Math.min(H-1,Math.round(v*(H-1))));
+      const sx=Math.max(0,Math.min(W-1,Math.round(u*(W-1))));
+      const sp=(sy*W+sx)*4;
+
+      let rr=sd[sp],gg=sd[sp+1],bb=sd[sp+2];
+      if(opts.mode==='processing'){
+        const p=opts.progress??0;
+        if(p<.62){
+          const gray=rr*.299+gg*.587+bb*.114;
+          const edgeBoost=Math.max(0,Math.min(255,(gray-108)*1.5+132));
+          rr=gg=bb=edgeBoost;
+        }else{
+          const m=Math.min(1,(p-.62)/.38);
+          const gray=rr*.299+gg*.587+bb*.114;
+          rr=gray*(1-m)+rr*m;
+          gg=gray*(1-m)+gg*m;
+          bb=gray*(1-m)+bb*m;
+        }
+      }
+
+      bd[i]=rr;bd[i+1]=gg;bd[i+2]=bb;bd[i+3]=255;
+    }
+  }
+  sctx.putImageData(base,0,0);
+}
+
+let processingProgress=0;
+function compositeLoop(){
+  const active=document.querySelector('.screen.active')?.id;
+  if(active==='screen3' && $('live3').readyState>=2)
+    renderStage('stage3',$('readyBase'),$('live3'),'ready');
+  else if(active==='screen4' && $('live4').readyState>=2)
+    renderStage('stage4',$('countBase'),$('live4'),'ready');
+  else if(active==='screen5' && $('reviewImage').src)
+    renderStage('stage5',$('reviewBase'),$('reviewImage'),'review');
+  else if(active==='screen6' && $('processingImage').src)
+    renderStage('stage6',$('generatingVideo'),$('processingImage'),'ready',{mode:'processing',progress:processingProgress});
+  requestAnimationFrame(compositeLoop);
+}
+requestAnimationFrame(compositeLoop);
+
+
+function compositeLoop(){
+ const active=document.querySelector('.screen.active')?.id;
+ if(active==='screen3')renderComposite('stage3',$('readyBase'),$('live3'),'ready');
+ else if(active==='screen4')renderComposite('stage4',$('countBase'),$('live4'),'ready');
+ else if(active==='screen5')renderComposite('stage5',$('reviewBase'),$('reviewImage'),'review');
+ else if(active==='screen6')renderComposite('stage6',$('generatingVideo'),$('processingImage'),'ready',{mode:'processing',progress:processingProgress});
+ requestAnimationFrame(compositeLoop);
+}
+requestAnimationFrame(compositeLoop);
+
+
+/* Remove the near-white canvas from the duplicate foreground video.
+   Result: the live/photo layer fills the whole canvas, while hand/brush/person stay above it. */
+function startWhiteKey(videoId,canvasId){
+ const v=$(videoId),out=$(canvasId); if(!v||!out)return;
+ const work=document.createElement('canvas'),wctx=work.getContext('2d',{willReadFrequently:true}),octx=out.getContext('2d');
+ let stopped=false;
+ const draw=()=>{
+   if(stopped)return;
+   if(v.readyState>=2 && v.videoWidth && v.videoHeight){
+     const w=Math.min(512,v.videoWidth),h=Math.round(w*v.videoHeight/v.videoWidth);
+     if(work.width!==w||work.height!==h){work.width=out.width=w;work.height=out.height=h}
+     wctx.drawImage(v,0,0,w,h);
+     const im=wctx.getImageData(0,0,w,h),d=im.data;
+     for(let i=0;i<d.length;i+=4){
+       const r=d[i],g=d[i+1],b=d[i+2];
+       const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+       // neutral/light easel canvas -> transparent; painter/hand/brush remain opaque
+       if(r>150&&g>142&&b>125&&(mx-mn)<46){
+         const lum=(r+g+b)/3;
+         d[i+3]=Math.max(0,255-(lum-145)*4.0);
+       }
+     }
+     octx.clearRect(0,0,w,h);octx.putImageData(im,0,0);
+     out.style.display='block';
+   }
+   requestAnimationFrame(draw);
+ };
+ requestAnimationFrame(draw);
+ return ()=>{stopped=true};
+}
+
+
+
+function stopCamera(){
+ if(stream){stream.getTracks().forEach(x=>x.stop());stream=null}
+ $('live3').srcObject=null;$('live4').srcObject=null;
+}
+async function startCamera(){
+ if(String(settings.cameraMode).startsWith('canon-')){
+   alert('Canon üçün Windows ONE Booth Helper / EDSDK bağlantısı lazımdır.');
+   throw new Error('Canon helper required');
+ }
+ stopCamera();
+ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1920},height:{ideal:1080}},audio:false});
+ $('live3').srcObject=stream;$('live4').srcObject=stream;
+ await Promise.allSettled([$('live3').play(),$('live4').play()]);
+ 
+}
+async function openReady(){
+ show('screen3');
+ try{await startCamera()}catch(e){}
+}
+async function doCountdown(){
+ if(counting||!stream)return;
+ const token=++flowToken;
+ counting=true;show('screen4');$('countPortal').style.display='block';$('countKey').style.display='block';
+ $('countdownOverlay').style.display='flex';
+ for(let n=4;n>=1;n--){
+   if(token!==flowToken){counting=false;$('countdownOverlay').style.display='none';return}
+   $('countNum').textContent=n;$('countNum').style.animation='none';void $('countNum').offsetWidth;
+   $('countNum').style.animation='countPop .72s cubic-bezier(.18,.8,.22,1)';
+   await new Promise(r=>setTimeout(r,1000));
+ }
+ if(token!==flowToken)return;
+ $('countdownOverlay').style.display='none';counting=false;capture();
+}
+function capture(){
+ const v=$('live4'),c=$('captureCanvas'),ctx=c.getContext('2d');
+ const w=1200,h=1800,sw=v.videoWidth,sh=v.videoHeight;
+ if(!sw||!sh){alert('Kamera görüntüsü hazır deyil.');return}
+ const sc=Math.max(w/sw,h/sh),cw=w/sc,ch=h/sc,sx=(sw-cw)/2,sy=(sh-ch)/2;
+ ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(w,0);ctx.scale(-1,1);ctx.drawImage(v,sx,sy,cw,ch,0,0,w,h);ctx.restore();
+ rawData=c.toDataURL('image/jpeg',.95);
+ stopCamera();
+ $('reviewImage').src=rawData;$('reviewActions').style.display='grid';
+ show('screen5');
+}
+async function retake(){
+ rawData='';$('reviewImage').removeAttribute('src');$('reviewActions').style.display='none';
+ await openReady();
+}
+function loadImage(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src})}
+async function composeFinal(){
+ if(!rawData)return '';
+ const base=await loadImage(rawData),c=$('finalCanvas'),ctx=c.getContext('2d'),w=1200,h=1800;
+ ctx.clearRect(0,0,w,h);ctx.drawImage(base,0,0,w,h);
+ if(frameData){try{const f=await loadImage(frameData);ctx.drawImage(f,0,0,w,h)}catch(e){}}
+ return c.toDataURL('image/jpeg',.96);
+}
+async function continueFlow(){
+ if(!rawData)return;
+ const token=++flowToken;
+ show('screen6');
+ $('processingImage').src=rawData;
+ processingProgress=0;
+ $('progressBar').style.width='0%';
+ $('processingTime').textContent='0%';
+
+ const total=10000;
+ const started=performance.now();
+ await new Promise(resolve=>{
+   const step=now=>{
+     if(token!==flowToken){resolve();return}
+     const p=Math.min(1,(now-started)/total);
+     processingProgress=p;
+     const percent=Math.round(p*100);
+     $('progressBar').style.width=percent+'%';
+     $('processingTime').textContent=percent+'%';
+     if(p<1)requestAnimationFrame(step);else resolve();
+   };
+   requestAnimationFrame(step);
+ });
+ if(token!==flowToken)return;
+
+ await new Promise(r=>setTimeout(r,700));
+ finalData=await composeFinal();
+ if(token!==flowToken)return;
+ gallery.unshift({raw:rawData,final:finalData||rawData,style:selectedStyle,id:Date.now().toString(36)});
+ renderGallery();
+ $('finalPhoto').src=finalData||rawData;
+ $('finalPhoto').style.display='block';
+ show('screen7');
+}
+function reset(){
+ stopCamera();counting=false;rawData='';finalData='';
+ $('reviewActions').style.display='none';$('finalPhoto').style.display='none';
+ show('screen1');
+}
+
+function renderGallery(){
+ $('galleryBadge').textContent=gallery.length;$('galleryGrid').innerHTML='';
+ $('galleryEmpty').style.display=gallery.length?'none':'block';
+ gallery.forEach(item=>{const d=document.createElement('div');d.className='galleryItem';d.innerHTML='<img alt="">';d.querySelector('img').src=item.final||item.raw;$('galleryGrid').appendChild(d)});
+}
+function saveSettings(){
+ settings.eventName=$('eventName').value.trim()||'ONE EVENTS';settings.guestLanguage=$('guestLanguage').value;settings.cameraMode=$('cameraMode').value;settings.printerMode=$('printerMode').value;settings.qrMode=$('qrMode').value;
+ localStorage.setItem('one_premium_settings',JSON.stringify(settings));applyLanguage();$('adminModal').classList.remove('open');
+}
+function loadSettings(){
+ try{settings={...settings,...JSON.parse(localStorage.getItem('one_premium_settings')||'{}')}}catch(e){}
+ $('eventName').value=settings.eventName;$('guestLanguage').value=settings.guestLanguage;$('cameraMode').value=settings.cameraMode;$('printerMode').value=settings.printerMode;$('qrMode').value=settings.qrMode;applyLanguage()
+}
+$('frameInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>frameData=r.result;r.readAsDataURL(f)});
+
+$('welcomeTap').onclick=()=>show('screen2');
+$('backStyle').onclick=reset;
+document.querySelectorAll('.styleChoice').forEach(b=>b.onclick=()=>{selectedStyle=b.dataset.style;openReady()});
+$('screen3').addEventListener('click',e=>{if(e.target.closest('button'))return;doCountdown()});
+$('backReady').onclick=()=>{stopCamera();show('screen2')};
+
+$('retakeBtn').onclick=retake;$('continueBtn').onclick=continueFlow;$('finishBtn').onclick=reset;
+
+$('backCount').onclick=()=>{++flowToken;counting=false;$('countdownOverlay').style.display='none';show('screen3');};
+$('backReview').onclick=()=>{++flowToken;retake();};
+$('backProcessing').onclick=()=>{++flowToken;processingProgress=0;$('reviewImage').src=rawData;show('screen5');$('reviewActions').style.display='grid';};
+$('backFinal').onclick=()=>{++flowToken;$('reviewImage').src=rawData;show('screen5');$('reviewActions').style.display='grid';};
+
+
+$('galleryBtn').onclick=e=>{e.stopPropagation();renderGallery();show('galleryScreen')};$('galleryBack').onclick=()=>show('screen1');
+$('adminBtn').onclick=e=>{e.stopPropagation();$('adminModal').classList.add('open')};$('adminClose').onclick=$('adminCancel').onclick=()=>$('adminModal').classList.remove('open');$('adminSave').onclick=saveSettings;
+
+$('qrBtn').onclick=()=>{
+ if(settings.qrMode!=='on'){alert('QR bu event üçün söndürülüb.');return}
+ $('qrBox').innerHTML='<span>QR</span>';$('qrHint').textContent='Cloud backend qoşulanda bu QR original + final şəkli açacaq.';$('qrModal').classList.add('open')
+};$('qrClose').onclick=()=>$('qrModal').classList.remove('open');
+
+$('printBtn').onclick=()=>{printCopies=1;$('qtyValue').textContent=1;$('printStatus').textContent='';$('printModal').classList.add('open')};
+$('printClose').onclick=()=>$('printModal').classList.remove('open');
+$('qtyMinus').onclick=()=>{$('qtyValue').textContent=printCopies=Math.max(1,printCopies-1)};
+$('qtyPlus').onclick=()=>{$('qtyValue').textContent=printCopies=Math.min(20,printCopies+1)};
+$('printConfirm').onclick=()=>{$('printStatus').textContent=`${settings.printerMode.toUpperCase()} üçün ${printCopies} nüsxə hazırdır. Real avtomatik çap Windows helper qoşulanda işləyəcək.`};
+
+window.addEventListener('pagehide',stopCamera);
+loadSettings();renderGallery();$('welcomeVideo').play().catch(()=>{});
+})();
+</script>
+</body>
+</html>
+
+<!-- v4 stable polygon compositor -->
